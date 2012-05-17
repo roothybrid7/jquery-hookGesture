@@ -9,5 +9,6 @@ tags
 .bundle/
 bin/*
 *cache*
+node_modules/
 vendor/bundle
 !**/.gitkeep
