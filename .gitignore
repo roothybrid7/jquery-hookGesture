@@ -1,0 +1,13 @@
+*.log
+*.out
+*.pid
+
+pids
+logs
+tags
+
+.bundle/
+bin/*
+*cache*
+vendor/bundle
+!**/.gitkeep
