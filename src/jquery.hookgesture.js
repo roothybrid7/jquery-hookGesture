@@ -72,49 +72,45 @@
           $.fn.hookGesture.defaults,
           $.fn.hookGesture.callbacks,
           options);
-          console.log(this.length);
 
-      return this.each(function() {
-        var $this = $(this),
-          data = $this.data('hookGesture');
-          console.log(data);
+      if (!!!live || this.length > 0) {
+        this.each(function() {
+          var $this = $(this),
+            data = getData(this);
+          if (!!!data) {
+            $this.on(events.start, function(e) {
+              initializeData($this, e);
+              $this.trigger('hookgesture.start', e);
+            }).on(events.move, function(e) {
+              var data = getData(this),
+                touching = data.touching;
 
-        if (!data) {
-          $this.data('hookGesture', settings);
+              if (touching) {
+                updateData($this, e);
+                $this.trigger('hookgesture.move', e);
+              }
+            }).on(events.end, function(e) {
+              var data = getData(this),
+                touching = data.touching;
 
-          // TODO: Register event handler.
-          $(document).on(events.start, selfSelector, function(e) {
-            console.log(selfSelector, $this);
-            initializeData($this, e);
-            $this.trigger('hookgesture.start', e);
-          });
-          $(document).on(events.move, function(e) {
-            var data = $this.data('hookGesture'),
-              touching = data.touching;
-
-            if (touching) {
-              updateData($this, e);
-              $this.trigger('hookgesture.move', e);
-            }
-          }).on(events.end, function(e) {
-            var data = $this.data('hookGesture'),
-              touching = data.touching;
-
-            if (touching) {
-              endTouch($this, e);
-              $this.trigger('hookgesture.end', e);
-            }
-          });
-        }
-      });
+              if (touching) {
+                endTouch($this, e);
+                $this.trigger('hookgesture.end', e);
+              }
+            });
+          }
+        });
+      }
+      return this;
     },
     destroy: function() {
-      return this.each(function() {
+      this.each(function() {
         var $this = $(this),
           data = $this.data('hookGesture');
 
           $this.removeData('hookGesture');
       });
+      return this;
     }
   };
 
@@ -130,6 +126,20 @@
       }
     }
   });
+
+  function getData($obj) {
+    var data = $.data($obj, 'hookGesture');
+    if (!!!data) {
+      var settings = $.extend(
+        {},
+        $.fn.hookGesture.defaults,
+        $.fn.hookGesture.callbacks,
+        options);
+
+      $.data($obj, 'hookGesture', settings);
+    }
+    return data;
+  }
 
   function initializeData($obj, e) {
     console.log('initializeData');
@@ -147,6 +157,7 @@
   }
 
   $.fn.hookGesture.defaults = {
+    live: false,
     touching: false,
     flickMinDistance: 50,
     scrollDirection: false, // 'x', 'y'

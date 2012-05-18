@@ -11,6 +11,7 @@ buster.testCase('hookGesture', {
   '//context: attributes': {
     setUp: function() {
       this.defaultsExpected = {
+        live: false,
         flickMinDistance: 50,
         scrollDirection: false,
         debug: false
@@ -23,6 +24,7 @@ buster.testCase('hookGesture', {
       'single': function() {
         var data = this.container.data('hookGesture');
         var actual = {
+          live: data.live,
           flickMinDistance: data.flickMinDistance,
           scrollDirection: data.scrollDirection,
           debug: data.debug
@@ -31,6 +33,7 @@ buster.testCase('hookGesture', {
       },
       'nested': function() {
         var expected = {
+          live: false,
           flickMinDistance: 50,
           scrollDirection: false,
           debug: false,
@@ -45,6 +48,7 @@ buster.testCase('hookGesture', {
         };
         var data = this.container.data('hookGesture');
         var actual = {
+          live: data.live,
           flickMinDistance: data.flickMinDistance,
           scrollDirection: data.scrollDirection,
           debug: data.debug,
@@ -57,6 +61,7 @@ buster.testCase('hookGesture', {
     'context: initialize with parameter': {
       setUp: function() {
         this.initParams = {
+          live: true,
           flickMinDistance: 30,
           scrollDirection: 'x',
           debug: true
@@ -66,6 +71,7 @@ buster.testCase('hookGesture', {
       'single': function() {
         var data = this.container.data('hookGesture');
         var actual = {
+          live: data.live,
           flickMinDistance: data.flickMinDistance,
           scrollDirection: data.scrollDirection,
           debug: data.debug
@@ -76,6 +82,7 @@ buster.testCase('hookGesture', {
         this.container.hookGesture();
         var data = this.container.data('hookGesture');
         var actual = {
+          live: data.live,
           flickMinDistance: data.flickMinDistance,
           scrollDirection: data.scrollDirection,
           debug: data.debug
