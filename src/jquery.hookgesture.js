@@ -7,163 +7,238 @@
  * requires: jQuery.
  */
 
-/*!
- * Core gesture:
- *
- * Basic actions.
- * User action|gesture   |description|
- * Change     |press     |duration > 1000ms
- * Open       |double tap|(embed)
- * Select     |tap       |(embed)
- *
- * Object-related actions.
- * User action|gesture       |description|
- * Adjest     |press and drag|
- * Bundle     |press and tap,|
- *            |then drag     |
- * Delete     |drag          |with object.
- * Duplicate  |tap           |
- * Move       |drag, flick   |
- * Scale down |pinch         |
- * Scale up   |spread        |
- *
- * Navigating actions.
- * User action|gesture      |description|
- * Adjest view|rotate       |
- * Adject zoom|pinch        |
- *
- * Flick(touchstart -> touchend <= 1000ms, > 50px[移動距離は設定値で変更])
- *  - moveendTime - lastmoveTime < 1000ms && move > 50px;(touchendで判定)
- *  - +1/-1(touchend)
- * Drag(move > 50px[移動距離は設定値で変更])
- *  - move > 50px;(touchmoveで判定)
- *  - +1/-1 * if > mixDistance(touchmove)
- *
- * 1. Ditect touch events and get distance.
- *  - Flick or Drag.
- * 2. callback(default: false).
- *  - touchstart[set position, timestamp]
- *    - onstart(set element.data and callback)
- *  - touchmove[set direction, distance]
- *    - onmove(set element.data direction, position, and callback)
- *  - touchend[check threshold]
- *    - onend(check timestamp, trigger flick and callback)
- *  - flick[trigger flickXXX and callback]
- *  - flick(up|left)[trigger scrollnext]
- *  - flick(down|right)[trigger scrollprev]
- */
-(function($) {
+(function($, global) {
   'use strict';
 
-  var touchSupport = 'ontouchend' in document,
-    // Get touchevents of Mobile or PC.
-    events = {
-      start: (touchSupport) ? 'touchstart' : 'mousedown',
-      move: (touchSupport) ? 'touchmove' : 'mousemove',
-      end: (touchSupport) ? 'touchend' : 'mouseup'
-    };
+  // jQuery plugin name.
+  var pluginName = 'hookGesture';
+
+  /**
+   * Plugin constructor.
+   * @param {Document} element A Dom element.
+   * @param {Object} options A plugin options.
+   * @constructor
+   */
+  function Plugin(element, options) {
+    this._name = pluginName;
+    this.element = element;
+    this.options = options;
+  }
 
   var methods = {
-    init: function(options) {
-      var target = null,
-        selfSelector = $(this).selector,
-        settings = $.extend(
-          {},
-          $.fn.hookGesture.defaults,
-          $.fn.hookGesture.callbacks,
-          options);
-
-      if (!!!live || this.length > 0) {
-        this.each(function() {
-          var $this = $(this),
-            data = getData(this);
-          if (!!!data) {
-            $this.on(events.start, function(e) {
-              initializeData($this, e);
-              $this.trigger('hookgesture.start', e);
-            }).on(events.move, function(e) {
-              var data = getData(this),
-                touching = data.touching;
-
-              if (touching) {
-                updateData($this, e);
-                $this.trigger('hookgesture.move', e);
-              }
-            }).on(events.end, function(e) {
-              var data = getData(this),
-                touching = data.touching;
-
-              if (touching) {
-                endTouch($this, e);
-                $this.trigger('hookgesture.end', e);
-              }
-            });
-          }
-        });
-      }
-      return this;
-    },
-    destroy: function() {
+    destroy: function(element) {
       this.each(function() {
         var $this = $(this),
           data = $this.data('hookGesture');
-
           $this.removeData('hookGesture');
       });
       return this;
     }
   };
+  $.extend(Plugin.prototype, methods);
 
-  $.fn.extend({
-    hookGesture: function(method) {
-      if (methods[method]) {
-        return methods[method].apply(this, [].slice.call(arguments, 1));
-      } else if (typeof method === 'object' || !method) {
-        return methods.init.apply(this, arguments);
-      } else {
-        $.error('Method ' + method + ' does not exist on jQuery.hookgesture');
-        return this;
-      }
+  // bootstrap.
+  $.fn[pluginName] = function(options) {
+    var plugin = this.data(pluginName);
+    if (typeof options === 'string' && methods[options]) {
+      plugin && plugin[options].apply(this, [].slice.call(arguments, 1));
+      return this;
+    } else if (options && typeof options !== 'object') {
+      // Error.
+      $.error('Method ' + options + ' does not exist on jQuery.' + pluginName);
+      return this;
     }
-  });
 
-  function getData($obj) {
-    var data = $.data($obj, 'hookGesture');
-    if (!!!data) {
-      var settings = $.extend(
-        {},
-        $.fn.hookGesture.defaults,
-        $.fn.hookGesture.callbacks,
-        options);
+    // Initialize.
+    var settings = $.extend(
+      {},
+      $.fn[pluginName].defaults,
+      $.fn[pluginName].callbacks,
+      options);
 
-      $.data($obj, 'hookGesture', settings);
+    if (!!!settings.live && this.length > 0) {
+      this.each(function() { getPlugin(this, settings); });
+      settings.live = false;
+    } else {
+      settings.live = true;
     }
-    return data;
+
+    if (!!!settings.live) {
+      console.log('BIND API!!');
+      this
+        .on('touchstart mousedown', onTouchStart)
+        .on('touchmove mousemove', onTouchMove)
+        .on('touchend mouseup', onTouchEnd);
+    } else {
+      console.log('LIVE API!!');
+      var selfSelector = this.selector;
+      $(document)
+        .on('touchstart mousedown', selfSelector, onTouchStart)
+        .on('touchmove mousemove', selfSelector, onTouchMove)
+        .on('touchend mouseup', selfSelector, onTouchEnd);
+    }
+
+    $(document).on('touchmove mousemove', function(e) {
+      $(selfSelector).each(function() {
+        console.log('TOUCH MOVE');
+        updateOnTouchMoving(this, e);
+        $(this).trigger('hookgesture:move', e);
+      });
+    }).on('touchend mouseup', function(e) {
+      $(selfSelector).each(function() {
+        console.log('TOUCH END');
+        endTouch(this, e);
+        $(this).trigger('hookgesture:end', e);
+      });
+    });
+
+    function onTouchStart(e) {
+      console.log('TOUCH START');
+      var target = e.currentTarget;
+      plugin = getPlugin(target, settings);
+      setUpOnTouchStart(target, e);
+      $(target).trigger('hookgesture:start', e);
+    };
+
+    function onTouchMove(e) {
+      console.log('TOUCH move');
+      var target = e.currentTarget;
+      updateOnTouchMoving(target, e);
+      $(target).trigger('hookgesture:move', e);
+      e.stopPropagation();
+    };
+
+    function onTouchEnd(e) {
+      console.log('TOUCH end');
+      var target = e.currentTarget;
+      endTouch(target, e);
+      $(target).trigger('hookgesture:end', e);
+      e.stopPropagation();
+    };
+
+    return this;
+  };
+
+  /*!
+   * Private functions.
+   */
+
+  /**
+   * Get plugin instance.
+   *
+   * @param {Document} element A Dom element.
+   * @param {Object} options A plugin options.
+   * @return {*} A Plugin instance.
+   */
+  function getPlugin(element, options) {
+    console.log('getPlugin');
+    var plugin = $.data(element, pluginName);
+    if (!!!plugin && options) {
+      plugin = new Plugin(element, options);
+      $.data(element, pluginName, plugin);
+    }
+    return plugin;
   }
 
-  function initializeData($obj, e) {
-    console.log('initializeData');
-    var data = $obj.data('hookGesture');
-    data.touching = true;
-    $obj.data('hookGesture', data);
+  /**
+   * Set up on touch start.
+   *
+   * @param {Document} element A dom element.
+   * @param {Event} event A touchstart event object.
+   */
+  function setUpOnTouchStart(element, event) {
+    console.log('setUpOnTouchStart');
+    var plugin = getPlugin(element),
+        options = plugin.options,
+        x, y, touches = event.originalEvent && event.originalEvent.touches;
+
+    // TODO: set start properties.
+    plugin.touching = true;
+    options.startProp = {
+      x: (touches ? touches[0].pageX : event.clientX),
+      y: (touches ? touches[0].pageY : event.clientY),
+      scrollTop: $(element).scrollTop(),
+      scrollLeft: $(element).scrollLeft(),
+      time: event.timeStamp
+    };
+    options.lastChanged = event.timeStamp;
+    options.moveProp.lastPosition = {
+      x: options.startProp.x,
+      y: options.startProp.y,
+      scrollTop: options.startProp.scrollTop,
+      scrollLeft: options.startProp.scrollLeft
+    };
+ }
+
+  /**
+   * Update properties on touch moving.
+   *
+   * @param {Document} element A dom element.
+   * @param {Event} event A touchmove event object.
+   */
+  function updateOnTouchMoving(element, event) {
+    console.log('updateOnTouchMoving');
+    var plugin = getPlugin(element);
+    if (plugin && plugin.touching) {
+      var options = plugin.options,
+          x, y,
+          touches = event.originalEvent && event.originalEvent.changedTouches;
+
+      options.lastChanged = event.timeStamp;
+      options.moveProp.prevPosition = {
+        x: options.moveProp.lastPosition.x,
+        y: options.moveProp.lastPosition.y,
+        scrollTop: options.moveProp.lastPosition.scrollTop,
+        scrollLeft: options.moveProp.lastPosition.scrollLeft
+      };
+      options.moveProp.lastPosition = {
+        x: (touches ? touches[0].pageX : event.clientX),
+        y: (touches ? touches[0].pageY : event.clientY),
+        scrollTop: $(element).scrollTop(),
+        scrollLeft: $(element).scrollLeft()
+      };
+    }
   }
 
-  function updateData($obj, e) {
-    console.log('updateData');
-  }
-
-  function endTouch($obj, e) {
+  /**
+   * @param {Document} element A dom element.
+   * @param {Event} event A touchend event object.
+   */
+  function endTouch(element, event) {
     console.log('endTouch');
+    var plugin = getPlugin(element),
+        options = plugin.options;
+    // TODO: remove touch properties.
+    plugin.touching = false;
+    options.endProp.time = event.timeStamp;
   }
 
+  // Plugin default options.
   $.fn.hookGesture.defaults = {
     live: false,
-    touching: false,
     flickMinDistance: 50,
     scrollDirection: false, // 'x', 'y'
-    startProp: {x: 0, y: 0, time: 0},
+    lastChanged: 0,
+    startProp: {
+      x: 0,
+      y: 0,
+      scrollTop: 0,
+      scrollLeft: 0,
+      time: 0
+    },
     moveProp: {
-      lastPosition: {x: 0, y: 0},
+      lastPosition: {
+        x: 0,
+        y: 0,
+        scrollTop: 0,
+        scrollLeft: 0
+      },
+      prevPosition: {
+        x: 0,
+        y: 0,
+        scrollTop: 0,
+        scrollLeft: 0
+      },
       distance: {x: 0, y: 0},
       direction: {
         horizontal: 0,
@@ -171,7 +246,7 @@
       }
     },
     endProp: {
-      duration: 0,
+      time: 0,
       direction: {
         horizontal: 0,
         vertical: 0
@@ -181,23 +256,23 @@
   };
 
   $.fn.hookGesture.callbacks = {
-    start: false,
-    move: false,
-    end: false,
-    scroll: false,
-    scrollLeft: false,
-    scrollRight: false,
-    scrollUp: false,
-    scrollDown: false,
-    flick: false,
-    flickLeft: false,
-    flickRight: false,
-    flickUp: false,
-    flickDown: false
+    onStart: false,
+    onMove: false,
+    onEnd: false,
+    onScroll: false,
+    onScrollLeft: false,
+    onScrollRight: false,
+    onScrollUp: false,
+    onScrollDown: false,
+    onFlick: false,
+    onFlickLeft: false,
+    onFlickRight: false,
+    onFlickUp: false,
+    onFlickDown: false
   };
 
   return $;
-}(jQuery));
+}(jQuery, this));
 
 // TODO: LoggerFunction
 // TODO: callback interface
